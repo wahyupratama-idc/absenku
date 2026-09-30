@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AbsenKu - Catat Absen Mudah</title>
+    <style>
+        /* CSS Reset & Dasar (Mobile-First) */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body { background-color: #f4f7f6; color: #333; line-height: 1.6; }
+        .container { width: 100%; max-width: 600px; margin: 0 auto; padding: 15px; }
+        
+        /* Header & Navigasi */
+        header { background: #007bff; color: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; text-align: center; }
+        .nav-tabs { display: flex; gap: 5px; margin-bottom: 15px; overflow-x: auto; }
+        .nav-tabs button { flex: 1; min-width: 100px; padding: 10px; border: none; background: #e0e0e0; cursor: pointer; border-radius: 5px; font-weight: bold; font-size: 13px; }
+        .nav-tabs button.active { background: #007bff; color: white; }
+        
+        /* Kontrol Utama (Pilih Kelas & Tanggal) */
+        .kontrol-grup { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 10px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+        input[type="text"], input[type="date"], input[type="month"], select, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; }
+        button.btn-utama { width: 100%; padding: 12px; background: #28a745; color: white; border: none; border-radius: 5px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button.btn-hapus { background: #dc3545; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        
+        /* Card Ringkasan */
+        .ringkasan { display: flex; gap: 10px; margin-bottom: 15px; }
+        .card-ringkasan { flex: 1; background: white; padding: 10px; text-align: center; border-radius: 8px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .card-ringkasan span { display: block; font-size: 20px; }
+        .teks-h { color: #28a745; } .teks-i { color: #17a2b8; } .teks-s { color: #ffc107; } .teks-a { color: #dc3545; }
+
+        /* Tabel & List Data */
+        .tabel-wadah { background: white; border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+        .radio-grup { display: flex; gap: 10px; }
+        .radio-grup label { font-weight: normal; font-size: 14px; display: flex; align-items: center; gap: 3px; cursor: pointer; }
+        
+        /* Penanda Khusus F3 (Di bawah 75%) */
+        .peringatan { color: #dc3545; font-weight: bold; background-color: #ffe6e6; }
+        
+        /* Notifikasi (Toast) */
+        #toast { visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center; border-radius: 5px; padding: 15px; position: fixed; z-index: 1; left: 50%; bottom: 30px; transform: translateX(-50%); }
+        #toast.tampil { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
+        /* Menyembunyikan Tab yang tidak aktif */
+        .tab-konten { display: none; }
+        .tab-konten.aktif { display: block; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h2>AbsenKu</h2>
+        <p>Aplikasi Absensi Wali Kelas</p>
+    </header>
+
+    <!-- Kontrol Global: Pilih Kelas -->
+    <div class="kontrol-grup">
+        <div class="form-group">
+            <label for="pilih-kelas">Pilih Kelas Aktif:</label>
+            <select id="pilih-kelas" onchange="gantiKelas()">
+                <option value="XI TJKT 1">XI TJKT 1</option>
+                <option value="XI TJKT 2">XI TJKT 2</option>
+                <option value="XII TJKT 1">XII TJKT 1</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Navigasi Tab -->
+    <div class="nav-tabs">
+        <button id="btn-tab-absen" class="active" onclick="bukaTab('absen')">Absen Harian</button>
+        <button id="btn-tab-rekap" onclick="bukaTab('rekap')">Rekap Bulanan</button>
+        <button id="btn-tab-siswa" onclick="bukaTab('siswa')">Kelola Siswa</button>
+    </div>
+
+    <!-- TAB 1: ABSEN HARIAN (F2) -->
+    <div id="tab-absen" class="tab-konten aktif">
+        <div class="kontrol-grup">
+            <label for="input-tanggal">Tanggal Absen:</label>
+            <input type="date" id="input-tanggal" onchange="renderAbsen()">
+        </div>
+
+        <div class="ringkasan">
+            <div class="card-ringkasan teks-h">Hadir <span id="jml-h">0</span></div>
+            <div class="card-ringkasan teks-i">Izin <span id="jml-i">0</span></div>
+            <div class="card-ringkasan teks-s">Sakit <span id="jml-s">0</span></div>
+            <div class="card-ringkasan teks-a">Alpa <span id="jml-a">0</span></div>
+        </div>
+
+        <div class="tabel-wadah">
+            <h3>Daftar Hadir</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nama Siswa</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="tabel-absen">
+                    <!-- Data absen akan dimuat di sini oleh JS -->
+                </tbody>
+            </table>
+            <button class="btn-utama" onclick="simpanAbsen()">Simpan Absen</button>
+        </div>
+    </div>
+
+    <!-- TAB 2: REKAP BULANAN (F3) -->
+    <div id="tab-rekap" class="tab-konten">
+        <div class="kontrol-grup">
+            <label for="input-bulan">Pilih Bulan & Tahun:</label>
+            <input type="month" id="input-bulan" onchange="renderRekap()">
+        </div>
+
+        <div class="tabel-wadah">
+            <h3>Rekap Kelas <span id="label-kelas-rekap"></span></h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nama Siswa</th>
+                        <th>H</th>
+                        <th>I</th>
+                        <th>S</th>
+                        <th>A</th>
+                        <th>% Hadir</th>
+                    </tr>
+                </thead>
+                <tbody id="tabel-rekap">
+                    <!-- Data rekap akan dimuat di sini oleh JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- TAB 3: KELOLA SISWA (F1) -->
+    <div id="tab-siswa" class="tab-konten">
+        <div class="kontrol-grup">
+            <h3>Tambah Siswa Baru</h3>
+            <p style="font-size: 12px; color: #666; margin-bottom: 10px;">Bisa masukkan banyak nama sekaligus, pisahkan dengan baris baru (Enter).</p>
+            <textarea id="input-nama-siswa" rows="3" placeholder="Contoh:&#10;Budi Santoso&#10;Siti Aminah"></textarea>
+            <button class="btn-utama" onclick="tambahSiswa()" style="background: #007bff;">Tambah Siswa</button>
+        </div>
+
+        <div class="tabel-wadah">
+            <h3>Daftar Siswa Kelas <span id="label-kelas-siswa"></span></h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>Nama Siswa</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="tabel-siswa">
+                    <!-- Data siswa akan dimuat di sini oleh JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Tempat memunculkan pesan (Toast) -->
+<div id="toast">Pesan aksi</div>
+
+<script>
+    // ==========================================
+    // 1. SISTEM DATA (localStorage) & KEAMANAN
+    // ==========================================
+    const STORAGE_KEY = 'absenku_v1';
+    let dataApp = { siswa: [], absen: {}, kelasTerakhir: 'XI TJKT 1' };
+
+    function muatData() {
+        const dataTersimpan = localStorage.getItem(STORAGE_KEY);
+        if (dataTersimpan) {
+            dataApp = JSON.parse(dataTersimpan);
+        }
+        document.getElementById('pilih-kelas').value = dataApp.kelasTerakhir || 'XI TJKT 1';
+        document.getElementById('input-tanggal').valueAsDate = new Date();
+        
+        // Set default bulan untuk rekap (format YYYY-MM)
+        const skrg = new Date();
+        const bln = (skrg.getMonth() + 1).toString().padStart(2, '0');
+        document.getElementById('input-bulan').value = `${skrg.getFullYear()}-${bln}`;
+    }
+
+    function simpanKeStorage() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(dataApp));
+    }
+
+    function escapeHTML(text) {
+        if (!text) return '';
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+        return text.toString().replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
+    function tampilkanPesan(pesan, warna = '#333') {
+        const toast = document.getElementById("toast");
+        toast.innerText = pesan;
+        toast.style.backgroundColor = warna;
+        toast.className = "tampil";
+        setTimeout(() => { toast.className = toast.className.replace("tampil", ""); }, 3000);
+    }
+
+    // ==========================================
+    // 2. NAVIGASI ANTARMUKA
+    // ==========================================
+    function bukaTab(namaTab) {
+        document.querySelectorAll('.nav-tabs button').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-konten').forEach(tab => tab.classList.remove('aktif'));
+        
+        document.getElementById('btn-tab-' + namaTab).classList.add('active');
+        document.getElementById('tab-' + namaTab).classList.add('aktif');
+
+        if (namaTab === 'siswa') renderSiswa();
+        if (namaTab === 'absen') renderAbsen();
+        if (namaTab === 'rekap') renderRekap(); // Panggil fungsi rekap saat tab diklik
+    }
+
+    function gantiKelas() {
+        dataApp.kelasTerakhir = document.getElementById('pilih-kelas').value;
+        simpanKeStorage();
+        renderSiswa();
+        renderAbsen();
+        renderRekap();
+    }
+
+    // ==========================================
+    // 3. FITUR F1: KELOLA SISWA
+    // ==========================================
+    function renderSiswa() {
+        const kelasAktif = dataApp.kelasTerakhir;
+        document.getElementById('label-kelas-siswa').innerText = escapeHTML(kelasAktif);
+        const tabelSiswa = document.getElementById('tabel-siswa');
+        tabelSiswa.innerHTML = '';
+
+        const siswaKelasIni = dataApp.siswa.filter(s => s.kelas === kelasAktif);
+
+        if (siswaKelasIni.length === 0) {
+            tabelSiswa.innerHTML = '<tr><td colspan="3" style="text-align:center;">Belum ada data siswa.</td></tr>';
+            return;
+        }
+
+        siswaKelasIni.forEach((siswa, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${index + 1}</td>
+                <td>${escapeHTML(siswa.nama)}</td>
+                <td><button class="btn-hapus" onclick="hapusSiswa('${escapeHTML(siswa.id)}')">Hapus</button></td>
+            `;
+            tabelSiswa.appendChild(tr);
+        });
+    }
+
+    function tambahSiswa() {
+        const inputElement = document.getElementById('input-nama-siswa');
+        const barisNama = inputElement.value.split('\n');
+        const kelasAktif = dataApp.kelasTerakhir;
+        let jumlahBerhasil = 0;
+        let adaGanda = false;
+
+        barisNama.forEach(namaMentah => {
+            const nama = namaMentah.trim();
+            if (nama === '') return;
+
+            const sudahAda = dataApp.siswa.find(s => s.kelas === kelasAktif && s.nama.toLowerCase() === nama.toLowerCase());
+            
+            if (!sudahAda) {
+                const idBaru = Date.now().toString() + Math.random().toString(36).substring(2, 6);
+                dataApp.siswa.push({ id: idBaru, kelas: kelasAktif, nama: nama });
+                jumlahBerhasil++;
+            } else {
+                adaGanda = true;
+            }
+        });
+
+        if (jumlahBerhasil > 0) {
+            simpanKeStorage();
+            renderSiswa();
+            renderAbsen();
+            renderRekap();
+            inputElement.value = '';
+            let pesan = `Berhasil menambah ${jumlahBerhasil} siswa.`;
+            if (adaGanda) pesan += ' (Beberapa nama ganda dilewati)';
+            tampilkanPesan(pesan, '#28a745');
+        } else if (adaGanda) {
+            tampilkanPesan('Gagal: Semua nama yang dimasukkan sudah ada!', '#dc3545');
+        } else {
+            tampilkanPesan('Mohon isi nama siswa!', '#ffc107');
+        }
+    }
+
+    function hapusSiswa(idSiswa) {
+        if (confirm("Yakin ingin menghapus siswa ini? Histori absen siswa ini tidak akan bisa diakses lagi.")) {
+            dataApp.siswa = dataApp.siswa.filter(s => s.id !== idSiswa);
+            simpanKeStorage();
+            renderSiswa();
+            renderAbsen();
+            renderRekap();
+            tampilkanPesan("Siswa berhasil dihapus.", "#28a745");
+        }
+    }
+
+    // ==========================================
+    // 4. FITUR F2: ABSEN HARIAN
+    // ==========================================
+    function getKunciAbsen() {
+        const tanggal = document.getElementById('input-tanggal').value;
+        const kelasAktif = dataApp.kelasTerakhir;
+        return `${tanggal}|${kelasAktif}`;
+    }
+
+    function renderAbsen() {
+        const kelasAktif = dataApp.kelasTerakhir;
+        const kunciAbsen = getKunciAbsen();
+        const tabelAbsen = document.getElementById('tabel-absen');
+        tabelAbsen.innerHTML = '';
+
+        const siswaKelasIni = dataApp.siswa.filter(s => s.kelas === kelasAktif);
+        const absenHariIni = dataApp.absen[kunciAbsen] || {};
+
+        if (siswaKelasIni.length === 0) {
+            tabelAbsen.innerHTML = '<tr><td colspan="2" style="text-align:center;">Siswa kosong. Tambahkan di menu Kelola Siswa.</td></tr>';
+            hitungRingkasan();
+            return;
+        }
+
+        siswaKelasIni.forEach(siswa => {
+            const status = absenHariIni[siswa.id] || 'H';
+            const id = escapeHTML(siswa.id);
+            const isChecked = (val) => status === val ? 'checked' : '';
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${escapeHTML(siswa.nama)}</td>
+                <td>
+                    <div class="radio-grup">
+                        <label><input type="radio" name="abs_${id}" value="H" ${isChecked('H')} onchange="hitungRingkasan()"> H</label>
+                        <label><input type="radio" name="abs_${id}" value="I" ${isChecked('I')} onchange="hitungRingkasan()"> I</label>
+                        <label><input type="radio" name="abs_${id}" value="S" ${isChecked('S')} onchange="hitungRingkasan()"> S</label>
+                        <label><input type="radio" name="abs_${id}" value="A" ${isChecked('A')} onchange="hitungRingkasan()"> A</label>
+                    </div>
+                </td>
+            `;
+            tabelAbsen.appendChild(tr);
+        });
+        
+        hitungRingkasan();
+    }
+
+    function hitungRingkasan() {
+        let h = 0, i = 0, s = 0, a = 0;
+        document.querySelectorAll('#tabel-absen input[type="radio"]:checked').forEach(radio => {
+            if (radio.value === 'H') h++;
+            else if (radio.value === 'I') i++;
+            else if (radio.value === 'S') s++;
+            else if (radio.value === 'A') a++;
+        });
+
+        document.getElementById('jml-h').innerText = h;
+        document.getElementById('jml-i').innerText = i;
+        document.getElementById('jml-s').innerText = s;
+        document.getElementById('jml-a').innerText = a;
+    }
+
+    function simpanAbsen() {
+        const kunciAbsen = getKunciAbsen();
+        const dataAbsenBaru = {};
+        
+        document.querySelectorAll('#tabel-absen input[type="radio"]:checked').forEach(radio => {
+            const idSiswa = radio.name.replace('abs_', '');
+            dataAbsenBaru[idSiswa] = radio.value;
+        });
+
+        dataApp.absen[kunciAbsen] = dataAbsenBaru;
+        simpanKeStorage();
+        tampilkanPesan('Absensi berhasil disimpan!', '#28a745');
+    }
+
+    // ==========================================
+    // 5. FITUR F3: REKAP BULANAN
+    // ==========================================
+    function renderRekap() {
+        const kelasAktif = dataApp.kelasTerakhir;
+        const bulanDipilih = document.getElementById('input-bulan').value; // Format: "YYYY-MM"
+        
+        document.getElementById('label-kelas-rekap').innerText = escapeHTML(kelasAktif);
+        const tabelRekap = document.getElementById('tabel-rekap');
+        tabelRekap.innerHTML = '';
+
+        const siswaKelasIni = dataApp.siswa.filter(s => s.kelas === kelasAktif);
+        
+        if (siswaKelasIni.length === 0) {
+            tabelRekap.innerHTML = '<tr><td colspan="6" style="text-align:center;">Belum ada data siswa.</td></tr>';
+            return;
+        }
+
+        // Cari semua data absen yang kuncinya berawalan tahun-bulan yang dipilih dan berakhiran kelas aktif
+        const daftarKunciBulanIni = Object.keys(dataApp.absen).filter(kunci => {
+            return kunci.startsWith(bulanDipilih) && kunci.endsWith(`|${kelasAktif}`);
+        });
+
+        siswaKelasIni.forEach(siswa => {
+            let h = 0, i = 0, s = 0, a = 0;
+
+            // Hitung status H/I/S/A untuk siswa ini di semua hari pada bulan terpilih
+            daftarKunciBulanIni.forEach(kunci => {
+                const status = dataApp.absen[kunci][siswa.id];
+                if (status === 'H') h++;
+                else if (status === 'I') i++;
+                else if (status === 'S') s++;
+                else if (status === 'A') a++;
+            });
+
+            // Hitung persentase kehadiran: (Hadir / Total Hari) * 100
+            const totalHariDicatat = h + i + s + a;
+            let teksPersen = "-";
+            let classCSS = "";
+
+            if (totalHariDicatat > 0) {
+                const persen = Math.round((h / totalHariDicatat) * 100);
+                teksPersen = persen + "%";
+                
+                // Jika kurang dari 75%, beri penanda peringatan
+                if (persen < 75) {
+                    classCSS = 'class="peringatan"';
+                }
+            }
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${escapeHTML(siswa.nama)}</td>
+                <td>${h}</td>
+                <td>${i}</td>
+                <td>${s}</td>
+                <td>${a}</td>
+                <td ${classCSS}>${teksPersen}</td>
+            `;
+            tabelRekap.appendChild(tr);
+        });
+    }
+
+    // ==========================================
+    // 6. INISIALISASI SAAT HALAMAN DIMUAT
+    // ==========================================
+    window.onload = function() {
+        muatData();
+        bukaTab('absen'); // Tab default
+    };
+</script>
+
+</body>
+</html>
